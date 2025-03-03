@@ -3,8 +3,10 @@
 #include <my4duk.h>
 #include <GateControl.h>
 #define MS_NEXT_MQTT_SEND 900
-#define BARRIER_PROCESSING_TIME_MS 10000UL
-#define BARRIER_OPEN_STATE_TIME_MS 20000UL
+#define BARRIER_PROCESSING_TIME_MS  10000UL
+#define BARRIER_OPEN_STATE_TIME_MS  20000UL
+#define BARRIER_PIN_CONTROL         LED_BUILTIN
+#define BARRIER_PIN_ACTIVE_LEVWL    LOW
 
 
 /// Это мои настройки
@@ -14,6 +16,7 @@
     #include <my.h>
 #else
 /// это ваши настройки
+// закомментируйте строку '#define MY_CREDENTIAL' для своих настроек
 #define ID_4DUK "Your_4duk_ID"
 #define WIFI_SSID "Your  WiFi name" 
 #define WIFI_PASS "Your WiFi password"
@@ -34,11 +37,12 @@ bool myWiFiConnect(){
 
 extern Duk::DevicesT devices;
 
-TimedControlGate gate(LED_BUILTIN, LOW , BARRIER_PROCESSING_TIME_MS,  BARRIER_OPEN_STATE_TIME_MS );
+TimedControlGate gate(BARRIER_PIN_CONTROL, BARRIER_PIN_ACTIVE_LEVWL , 
+        BARRIER_PROCESSING_TIME_MS,  BARRIER_OPEN_STATE_TIME_MS );
 
 
 void openGate(String& s){
-   // gateP.get()->startOpen();
+
    Serial.println(__PRETTY_FUNCTION__);
    Serial.println(s);
    gate.startOpen();
@@ -80,7 +84,6 @@ void setup(){
     } while( !Serial);
     Serial.println();
 
-    //relay.on();
     
     if( ! myWiFiConnect() ){
         Serial.println("ERROR: wifi connection");
