@@ -1,11 +1,11 @@
 
-//#include <relay.h>
-//#include "gateControlTest/GateControl.h"
-// #include <GateBase.h>
-// #include <TimedGate.h>
+
 #include <my4duk.h>
 #include <GateControl.h>
 #define MS_NEXT_MQTT_SEND 900
+#define BARRIER_PROCESSING_TIME_MS 10000UL
+#define BARRIER_OPEN_STATE_TIME_MS 20000UL
+
 
 /// Это мои настройки
 #define MY_CREDENTIAL
@@ -34,26 +34,8 @@ bool myWiFiConnect(){
 
 extern Duk::DevicesT devices;
 
-TimedControlGate gate(LED_BUILTIN, LOW , 10000UL, 20000UL );
-//Relay relay(LED_BUILTIN,0);
+TimedControlGate gate(LED_BUILTIN, LOW , BARRIER_PROCESSING_TIME_MS,  BARRIER_OPEN_STATE_TIME_MS );
 
-
-// String state( Relay& r ){ 
-//     return String( r.getState(true) ? "on" : "off");
-//  };
-// void relayOn(String& s){ relay.on(); };
-// String gateState(GateControl& gate ){
-//     return String( gate.get()->getOpenedPercent()); 
-// };
-
-// String stateRange(TimedControlGate& gate ){
-//     String s;
-//     auto percent = gate.getOpenedPercent(); 
-//     s+= percent;
-
-//     Serial.printf("%s %d string(%s)\n", __PRETTY_FUNCTION__, __LINE__, s.c_str());
-//     return s;
-// };
 
 void openGate(String& s){
    // gateP.get()->startOpen();
@@ -74,12 +56,8 @@ Duk::Action vorotaRanger( 0, 100, openOnRange );
 Duk::Actions vorotaOnOff( "on_off", Duk::ActionsT{ vorotaOpen } );
 Duk::Actions vorotaRange( "range", Duk::ActionsT{ vorotaRanger } );
 
-// callstat vorotaStateOnOff( [](String& s){ 
-//     s += gate.getStatus() == GateBase::StatusE::Closed ? "off" : "on"; 
-//     return s;
-// } );
 callstat vorotaState( [](String& s){ 
-    s.concat( gate.getOpenedPercent() );//stateRange(gate));
+    s.concat( gate.getOpenedPercent() );
     return s;
 } );
 
@@ -92,13 +70,10 @@ Duk::DeviceT vorota( Duk::DEV_THISGATE,  //DEV_OPENABLE,
 
 Duk::Gate dukRouter( ID_4DUK, "thisgate", vorota );
 
-// void Relay::onChange() const {
-//     vorota.sendStatus( dukRouter );
-// };
-//gateP.get()->setOn
+
 
 void setup(){
-    //gateP.get()->setOnChanged( []{ vorota.sendStatus( dukRouter ); }, 33 );
+   
     Serial.begin(115200);
     do { 
         delay(500);
@@ -119,7 +94,6 @@ void setup(){
     vorota.addCapabilities( vorotaOnOff );
     dukRouter.updateDevice( vorota );
     
-    //new ( &dukRouter ) Duk::Gate( ID_4DUK, "thisgate", vorota );
     Serial.println("======== device Vorota ==================");
     vorota.printTo(Serial);
 
@@ -156,8 +130,7 @@ void setup(){
                 }
                 lastState = GateBase::StatusE::Processing;
         }
-        // vorota.sendStatus( dukRouter, "on_off", ( gate.getStatus() == GateBase::StatusE::Closed) ? "off" : "on" ); 
-        // vorota.sendStatus( dukRouter );
+
 
     }, 25 );
 
@@ -166,35 +139,26 @@ void setup(){
     dukRouter.sendStatus(vorota, "on_off", "off");
     delay(MS_NEXT_MQTT_SEND);
     dukRouter.sendStatus(vorota, "range", 0);
-    //delay(1000);
-    
 
-    //devices[0].sendStatus( gate );
     ESP_MEMORY_PRINT(0);
 
-    // delay(500);
-    // dukRouter.sendStatus(vorota, "on_off", "on");
-    // delay(1000);
-    // dukRouter.sendStatus(vorota, "range", "50");
 }
 
 void loop()
 {
 
-    //relay.tick();
-    //gateP.get()->tick();
     gate.tick();
 
     if (!dukRouter.is_connected()) {
         Serial.print(F("Reconnect "));
         dukRouter.connect();
         Serial.println( dukRouter.is_connected() ? F("success") : F("fail"));
-        //gate.hello();
+        dukRouter.hello();
     }
     if ( dukRouter.tick() ){      
         Serial.println("Processed");
     }
-    //delay(2000);
+
     delay(200);
     ESP_MEMORY_PRINT(3000);
 }
