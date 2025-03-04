@@ -90,10 +90,10 @@ void setup(){
 void loop()
 {
     relay.tick();
-    if (!gate.is_connected()) {
+    if (!gate.isConnected()) {
         Serial.print(F("Reconnect "));
         gate.connect();
-        Serial.println( gate.is_connected() ? F("success") : F("fail"));
+        Serial.println( gate.isConnected() ? F("success") : F("fail"));
         //gate.hello();
     }
     if ( gate.tick() ){      

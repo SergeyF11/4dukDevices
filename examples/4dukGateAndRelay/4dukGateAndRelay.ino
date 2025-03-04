@@ -95,10 +95,10 @@ void setup()
 void loop()
 {
     relay.tick();
-    if (!dukRouter.is_connected()) {
+    if (!dukRouter.isConnected()) {
         Serial.print(F("Reconnect "));
         dukRouter.connect();
-        Serial.println( dukRouter.is_connected() ? F("success") : F("fail"));
+        Serial.println( dukRouter.isConnected() ? F("success") : F("fail"));
         //gate.hello();
     }
     if ( dukRouter.tick() ){      

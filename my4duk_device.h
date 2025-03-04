@@ -273,10 +273,14 @@ namespace Duk {
             sendStatus(gate, actionName, String(rangeState).c_str() );
         };
         void sendPing( Gate& gate);
-        bool inline nameEquals(const char * n) const;
+        bool inline nameEquals(const char * n) const
+        {
+            return (strcmp(name, n) == 0);
+        };
         //Actions getByName(const char * n) const;
         ~DeviceT() = default;
         size_t printTo(Print& p) const;
+        bool inline is( const DeviceTypeT t ) const { return ( this->type == t); };
         
     };
 

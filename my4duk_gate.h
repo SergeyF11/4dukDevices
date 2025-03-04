@@ -23,9 +23,8 @@
 #define  constLength(array) (((sizeof(array))/(sizeof(array[0])))-1)
 
 namespace Duk { 
-        //bool endStr( const char s);
-
-        //static const char magicStr[] PROGMEM = "i54478494974d";
+        
+        // PROGMEM hello
         static const char helloStr[] PROGMEM = "hello";    
 
 /// @brief  gate к 4duk по mqtt. 
@@ -71,16 +70,26 @@ namespace Duk {
             return i;
         };
         uint32_t cmil;
-        int hasMqttResponse(){ return mqtt.available(); };
-        int mqttReadToBuf(){
-            int readed = 0;
-            auto size = hasMqttResponse();
-            if ( size != 0 ) {
-                //readed =  mqtt.read(pack_buf, size);
-                readed = trimBuffer( mqtt.read(pack_buf, size) );
-            }
-            return readed; 
-        };
+        void inline resetPing(){ cmil = millis(); };
+
+        int inline hasMqttResponse() { return mqtt.available(); };
+        int mqttReadToBuf(size_t size = 0 );
+        // {
+        //     int readed = 0;
+        //     //auto size = hasMqttResponse();
+        //     if ( size == 0 ) size = hasMqttResponse();
+        //     if ( size != 0 ) {
+        //         readed = mqtt.read(pack_buf, size);
+        //         //pack_buf[readed] = '\0';
+        //         #ifdef DEBUG_PRINTF
+        //         debugPrintf("Readed raw %d bytes, ", readed);
+        //         printBuf(Serial );
+        //         #endif
+    
+        //         readed = trimBuffer(readed);
+        //     }
+        //     return readed; 
+        // };
 
      
         bool checkOk(){
@@ -89,52 +98,85 @@ namespace Duk {
                 strncmp( pack_buf, "OK", constLength("OK") ) == 0 ); 
         };
         int getMqttResponse( unsigned long ms=MQTT_WAIT_RESPONSE ){ 
-            pack_buf[0] = '\0';
+            //pack_buf[0] = '\0';
             int pack_size=0;
             auto start = millis();
             while ( pack_size == 0 ) {
                 if ( ( millis() - start) >= ms ) return pack_size;
                 delay(10);
-                pack_size=mqtt.available();
+                pack_size=hasMqttResponse();
             }
-            auto readed = mqtt.read(pack_buf,pack_size);
-            
-            #ifdef DEBUG_PRINTF
-            debugPrintf("Readed raw %d bytes, ", readed);
-            printBuf(Serial);
-            #endif
+            return mqttReadToBuf(pack_size);
+            // auto readed = mqtt.read(pack_buf,pack_size);
+            // //pack_buf[readed] = '\0';
+            // #ifdef DEBUG_PRINTF
+            // debugPrintf("Readed raw %d bytes, ", readed);
+            // printBuf(Serial );
+            // #endif
 
-            readed = trimBuffer(readed);
-            Serial.printf("Trimed %d bytes: %s\n", readed, pack_buf);
-            return readed;
-        };
-        bool checkResponse(const char * str){
-            FUNC_LINE(0);
-            pack_buf[0] = '\0';
-            auto len = strlen(str) - 1;
-            auto readed = getMqttResponse();
-            if ( readed < len ) return false;
-            return ( strncmp(pack_buf, str, len ) == 0 );
-        };
-        bool checkResponseP(const char * str){
-            FUNC_LINE(0);
-            pack_buf[0] = '\0';
-            auto len = strlen_P(str) - 1;
-            auto readed = getMqttResponse();
-            if ( readed < len ) return false;
-            return ( strncmp_P(pack_buf, str, len ) == 0 );
+            // readed = trimBuffer(readed);
+            // //Serial.printf("Trimed %d bytes: %s\n", readed, pack_buf);
+            //return readed;
         };
 
 
-        bool waitHello(unsigned long ms=MQTT_WAIT_RESPONSE ){ 
-            auto res = ( getMqttResponse(ms) >= constLength(helloStr) );
-            if ( res ) {
-                res = ( strncmp_P( pack_buf, helloStr, constLength(helloStr) ) == 0 );
+        // bool checkResponse(const char * str, const int size = -1){
+        //     if ( str ) {
+        //         size_t len;
+        //         if( size < 0) len = strlen_P(str) - 1;
+        //         else len = size;
+        //         auto readed = getMqttResponse();
+        //         if ( readed >= len ) 
+        //             return ( strncmp(pack_buf, str, len ) == 0 );
+        //     }
+        //     return false;
+        // };
+        // bool checkResponseP(const char * str, const int size = -1){
+        //     if ( str ) {
+        //         size_t len;
+        //         if( size < 0) len = strlen_P(str) - 1;
+        //         else len = size;
+        //         auto readed = getMqttResponse();
+        //         if ( readed >= len ) 
+        //             return ( strncmp_P(pack_buf, str, len ) == 0 );
+        //     }
+        //     return false;
+        // };
+
+        bool checkResponse(const char * str, const size_t bufSize, const int size = -1){
+            if ( str && bufSize ) {
+                size_t len;
+                if( size < 0) len = strlen_P(str) - 1;
+                else len = size;
+                //auto readed = getMqttResponse();
+                if ( bufSize >= len ) 
+                    return ( strncmp(pack_buf, str, len ) == 0 );
             }
-            FUNC_LINE(res ? F_TRUE : F_FALSE );
-            return res;
+            return false;
         };
-        void sendGateId(){ 
+        bool checkResponseP(const char * str, const size_t bufSize, const int size = -1){
+            if ( str && bufSize ) {
+                size_t len;
+                if( size < 0) len = strlen_P(str) - 1;
+                else len = size;
+                //auto readed = getMqttResponse();
+                if ( bufSize >= len ) 
+                    return ( strncmp_P(pack_buf, str, len ) == 0 );
+            }
+            return false;
+        };
+
+        bool inline waitHello(unsigned long ms=MQTT_WAIT_RESPONSE ){
+            auto bufSize = getMqttResponse(ms); 
+            return checkResponseP(helloStr, bufSize, constLength(helloStr));
+            // auto res = ( getMqttResponse(ms) >= constLength(helloStr) );
+            // if ( res ) {
+            //     res = ( strncmp_P( pack_buf, helloStr, constLength(helloStr) ) == 0 );
+            // }
+            // FUNC_LINE(res ? F_TRUE : F_FALSE );
+            //return res;
+        };
+        void inline sendGateId(){ 
             size_t sended=0;
             if( connected ) {
               sended = mqtt.println( gate_id ); 
@@ -145,26 +187,29 @@ namespace Duk {
         // bool isDigit(const char c ) const {
         //     return !(c<'0' || c>'9');
         // };
-        bool magicResponce(){
-            bool res = false; 
-            auto receved = getMqttResponse();
-            if( receved >= 15 ){
-                res = !res;
-                int i = 0;
-                int j = 1;
-                //bool valid = true;
-                while(( pack_buf[i])){
-                    if ( pack_buf[i] != gate_id[j]){
-                        res = !res;
-                        break;
-                    }
-                    i++; j += 2; // каждый второй знак gate_id
-                }
-             }
-             pack_buf[0]='\0';
-            debugPrintf("%s\n", res ? F("Succes") : F("Fail"));
-            return res;
-        };
+
+
+        bool magicResponce();
+        //{
+        //     bool res = false; 
+        //     auto receved = getMqttResponse();
+        //     if( receved >= 15 ){
+        //         res = !res;
+        //         int i = 0;
+        //         int j = 1;
+        //         //bool valid = true;
+        //         while(( pack_buf[i])){
+        //             if ( pack_buf[i] != gate_id[j]){
+        //                 res = !res;
+        //                 break;
+        //             }
+        //             i++; j += 2; // каждый второй знак gate_id
+        //         }
+        //      }
+        //      pack_buf[0]='\0';
+        //     debugPrintf("%s\n", res ? F("Succes") : F("Fail"));
+        //     return res;
+        // };
         public:
         WiFiClient * getMqttP() { return &mqtt; };
         static void gateCallback(String& s){
@@ -185,7 +230,7 @@ namespace Duk {
         Gate(const char * id, const char * mdnsName, DeviceT&);
         ~Gate();
         bool hello();
-        bool is_connected();
+        bool isConnected() const { return connected; };
         bool connect();
         bool sendStatus( int j = -1 );
         bool sendStatus( const char *name, const char* actionName=nullptr,  const char* state=nullptr );

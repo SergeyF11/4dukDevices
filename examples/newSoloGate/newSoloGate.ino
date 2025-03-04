@@ -2,11 +2,11 @@
 
 #include <my4duk.h>
 #include <GateControl.h>
-#define MS_NEXT_MQTT_SEND 900
+#define MS_NEXT_MQTT_SEND 10000
 #define BARRIER_PROCESSING_TIME_MS  10000UL
 #define BARRIER_OPEN_STATE_TIME_MS  20000UL
 #define BARRIER_PIN_CONTROL         LED_BUILTIN
-#define BARRIER_PIN_ACTIVE_LEVWL    LOW
+#define BARRIER_PIN_ACTIVE_LEVEL    LOW
 
 
 /// Это мои настройки
@@ -37,7 +37,7 @@ bool myWiFiConnect(){
 
 extern Duk::DevicesT devices;
 
-TimedControlGate gate(BARRIER_PIN_CONTROL, BARRIER_PIN_ACTIVE_LEVWL , 
+TimedControlGate gate(BARRIER_PIN_CONTROL, BARRIER_PIN_ACTIVE_LEVEL , 
         BARRIER_PROCESSING_TIME_MS,  BARRIER_OPEN_STATE_TIME_MS );
 
 
@@ -152,10 +152,10 @@ void loop()
 
     gate.tick();
 
-    if (!dukRouter.is_connected()) {
+    if (!dukRouter.isConnected()) {
         Serial.print(F("Reconnect "));
         dukRouter.connect();
-        Serial.println( dukRouter.is_connected() ? F("success") : F("fail"));
+        Serial.println( dukRouter.isConnected() ? F("success") : F("fail"));
         dukRouter.hello();
     }
     if ( dukRouter.tick() ){      
