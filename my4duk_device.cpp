@@ -57,18 +57,7 @@ void Duk::DeviceT::sendStatus(const char *actionName, const char *state)
         FUNC_LINE("Send to udp.");
     }
 };
-// void Duk::DeviceT::sendStatus( const char * actionName ){
-//     for ( auto action : capabilities ){
-//         if ( action.nameEquals( actionName) &&
-//             callstate != nullptr ) {
-//             String s1;
-//             formStatusStr(s1);
-//             //udp.send(s1);
-//             FUNC_LINE("Send to udp.");
-//         }
-//         break;
-//     }
-// };
+
 void Duk::DeviceT::sendPing(Duk::Gate &gate)
 {
     if (gate.isConnected())

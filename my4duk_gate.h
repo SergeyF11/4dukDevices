@@ -6,14 +6,16 @@
 #include <WiFiClient.h>
 #include "my4duk_device.h"
 
-#define MQTT_WAIT_RESPONSE 3000
+#define MQTT_WAIT_RESPONSE 3000UL
+#define PING_PERIOD_MS 110000UL
+#define MQTT_BUFFER_SIZE 1024
 
 //#define MY_4DUK_DEBUG
 #define F_TRUE  F("True")
 #define F_FALSE F("False")
 
 #ifdef MY_4DUK_DEBUG
-#define INIT_DEBUG { while( !Serial){ Serial.begin(115200); }}
+#define INIT_DEBUG { while( !Serial){ Serial.begin(115200); delay(500); }}
 #define FUNC_LINE(...) INIT_DEBUG { Serial.print(__PRETTY_FUNCTION__); Serial.println(__LINE__); Serial.println(__VA_ARGS__); Serial.flush(); }
 #else
 #define FUNC_LINE
@@ -26,6 +28,7 @@ namespace Duk {
         
         // PROGMEM hello
         static const char helloStr[] PROGMEM = "hello";    
+        static const char _4duk_su[] = "4duk.su";
 
 /// @brief  gate к 4duk по mqtt. 
 /// @param id = id шлюза 4duk
@@ -35,15 +38,18 @@ namespace Duk {
     /// иначе по udp через внешний роутер  
     class Gate {
         private:
-
         WiFiClient mqtt;
         const char *gate_id;
         const char *mdns_name;
         bool connected;
+        unsigned long ping_period = PING_PERIOD_MS;
+        int hasInBuffer = 0;
         #if defined(ESP32)
-        uint8_t pack_buf[1024];
+        uint8_t pack_buf[MQTT_BUFFER_SIZE];
+
         #elif defined(ESP8266)
-        char pack_buf[1024];
+        char pack_buf[MQTT_BUFFER_SIZE];
+        #endif
         void printBuf(Print& p){
             p.print("pack_buf[]: ");
             int i =0;
@@ -55,50 +61,75 @@ namespace Duk {
             }
             p.println();
         };
-        #endif
+        void resetBufferSize( const int newSize = 0){
+            hasInBuffer = newSize;
+            pack_buf[newSize] = '\0';
+        };
+
+        bool inline bufStartWith( const char * cmp, const size_t length ){
+            size_t len = length ? length : (strlen(cmp)-1);
+            return strncmp( pack_buf, "OK", constLength("OK") ) == 0;
+        }
+        bool inline bufEndsWith( const char * cmp, const size_t length = 0){
+            size_t len = length ? length : (strlen(cmp)-1);
+            return strncmp ( &pack_buf[hasInBuffer-len], cmp, len ) == 0;
+        };
+
         int trimBuffer(const int size ){
-            int i = size - 1;
-            //i--;
-            while( i >= 0 ){ 
+            // int i = size - 1;
+            // while( i >= 0 ){ 
+            int i;
+            for ( i = size-1; i >=0; i--){
                 if ( pack_buf[i] > 0x20 ) {
                     break;
                 }
-                i--;
+                //i--;
             }
             i++;
-            pack_buf[i] = '\0';
+            resetBufferSize(i);
             return i;
         };
-        uint32_t cmil;
-        void inline resetPing(){ cmil = millis(); };
+
+        // bool inline pingTimeout() const { 
+        //     return (millis() - cmil > MQTT_WAIT_RESPONSE); 
+        // };
 
         int inline hasMqttResponse() { return mqtt.available(); };
         int mqttReadToBuf(size_t size = 0 );
+
+        unsigned long cmil;
+        unsigned long lastOkMqttResponseTime;
+        void okResponse(const unsigned ms = 0 ){ 
+            resetBufferSize();
+            lastOkMqttResponseTime = ms ? ms : millis(); 
+            FUNC_LINE( lastOkMqttResponseTime);
+        };
+
+        bool checkOk(unsigned long timeoutMs = MQTT_WAIT_RESPONSE ); 
         // {
-        //     int readed = 0;
-        //     //auto size = hasMqttResponse();
-        //     if ( size == 0 ) size = hasMqttResponse();
-        //     if ( size != 0 ) {
-        //         readed = mqtt.read(pack_buf, size);
-        //         //pack_buf[readed] = '\0';
+        //     if ( (millis() - lastOkMqttResponseTime) >= (pingPeriod() + timeoutMs)) return false;
+
+        //     auto size =  mqttReadToBuf();
+
+        //     if  (constLength("OK") <= size ) {
         //         #ifdef DEBUG_PRINTF
         //         debugPrintf("Readed raw %d bytes, ", readed);
         //         printBuf(Serial );
         //         #endif
-    
-        //         readed = trimBuffer(readed);
+
+        //         if ( strncmp( pack_buf, "OK", constLength("OK") ) == 0 ) {
+        //             //lastOkMqttResponseTime = millis();
+        //             okResponse();
+        //             pack_buf[0] = '\0';
+        //         }
         //     }
-        //     return readed; 
+        //     return true;
         // };
 
-     
-        bool checkOk(){
-            auto size =  mqttReadToBuf();
-            return (constLength("OK") <= size &&
-                strncmp( pack_buf, "OK", constLength("OK") ) == 0 ); 
-        };
-        int getMqttResponse( unsigned long ms=MQTT_WAIT_RESPONSE ){ 
-            //pack_buf[0] = '\0';
+        ///void inline resetPing(){ cmil = millis(); };
+
+
+        int waitMqttResponse( unsigned long ms=MQTT_WAIT_RESPONSE ){ 
             int pack_size=0;
             auto start = millis();
             while ( pack_size == 0 ) {
@@ -107,74 +138,37 @@ namespace Duk {
                 pack_size=hasMqttResponse();
             }
             return mqttReadToBuf(pack_size);
-            // auto readed = mqtt.read(pack_buf,pack_size);
-            // //pack_buf[readed] = '\0';
-            // #ifdef DEBUG_PRINTF
-            // debugPrintf("Readed raw %d bytes, ", readed);
-            // printBuf(Serial );
-            // #endif
 
-            // readed = trimBuffer(readed);
-            // //Serial.printf("Trimed %d bytes: %s\n", readed, pack_buf);
-            //return readed;
         };
-
-
-        // bool checkResponse(const char * str, const int size = -1){
-        //     if ( str ) {
-        //         size_t len;
-        //         if( size < 0) len = strlen_P(str) - 1;
-        //         else len = size;
-        //         auto readed = getMqttResponse();
-        //         if ( readed >= len ) 
-        //             return ( strncmp(pack_buf, str, len ) == 0 );
-        //     }
-        //     return false;
-        // };
-        // bool checkResponseP(const char * str, const int size = -1){
-        //     if ( str ) {
-        //         size_t len;
-        //         if( size < 0) len = strlen_P(str) - 1;
-        //         else len = size;
-        //         auto readed = getMqttResponse();
-        //         if ( readed >= len ) 
-        //             return ( strncmp_P(pack_buf, str, len ) == 0 );
-        //     }
-        //     return false;
-        // };
 
         bool checkResponse(const char * str, const size_t bufSize, const int size = -1){
             if ( str && bufSize ) {
                 size_t len;
                 if( size < 0) len = strlen_P(str) - 1;
                 else len = size;
-                //auto readed = getMqttResponse();
+                //auto readed = waitMqttResponse();
                 if ( bufSize >= len ) 
                     return ( strncmp(pack_buf, str, len ) == 0 );
             }
             return false;
         };
         bool checkResponseP(const char * str, const size_t bufSize, const int size = -1){
+            bool res = false;
             if ( str && bufSize ) {
                 size_t len;
                 if( size < 0) len = strlen_P(str) - 1;
                 else len = size;
-                //auto readed = getMqttResponse();
+                //auto readed = waitMqttResponse();
                 if ( bufSize >= len ) 
-                    return ( strncmp_P(pack_buf, str, len ) == 0 );
+                    res = ( strncmp_P(pack_buf, str, len ) == 0 );
             }
-            return false;
+            resetBufferSize();
+            return res;
         };
 
         bool inline waitHello(unsigned long ms=MQTT_WAIT_RESPONSE ){
-            auto bufSize = getMqttResponse(ms); 
+            auto bufSize = waitMqttResponse(ms); 
             return checkResponseP(helloStr, bufSize, constLength(helloStr));
-            // auto res = ( getMqttResponse(ms) >= constLength(helloStr) );
-            // if ( res ) {
-            //     res = ( strncmp_P( pack_buf, helloStr, constLength(helloStr) ) == 0 );
-            // }
-            // FUNC_LINE(res ? F_TRUE : F_FALSE );
-            //return res;
         };
         void inline sendGateId(){ 
             size_t sended=0;
@@ -184,32 +178,8 @@ namespace Duk {
             FUNC_LINE( (String(F("Send ")) + sended + F(" bytes")).c_str() );
         };
 
-        // bool isDigit(const char c ) const {
-        //     return !(c<'0' || c>'9');
-        // };
-
-
         bool magicResponce();
-        //{
-        //     bool res = false; 
-        //     auto receved = getMqttResponse();
-        //     if( receved >= 15 ){
-        //         res = !res;
-        //         int i = 0;
-        //         int j = 1;
-        //         //bool valid = true;
-        //         while(( pack_buf[i])){
-        //             if ( pack_buf[i] != gate_id[j]){
-        //                 res = !res;
-        //                 break;
-        //             }
-        //             i++; j += 2; // каждый второй знак gate_id
-        //         }
-        //      }
-        //      pack_buf[0]='\0';
-        //     debugPrintf("%s\n", res ? F("Succes") : F("Fail"));
-        //     return res;
-        // };
+
         public:
         WiFiClient * getMqttP() { return &mqtt; };
         static void gateCallback(String& s){
@@ -231,11 +201,14 @@ namespace Duk {
         ~Gate();
         bool hello();
         bool isConnected() const { return connected; };
-        bool connect();
+        bool connect(const char *site=_4duk_su, const uint port=9009);
+        bool inline connect(const uint port ) { return connect(_4duk_su, port); };
         bool sendStatus( int j = -1 );
         bool sendStatus( const char *name, const char* actionName=nullptr,  const char* state=nullptr );
         bool sendStatus( DeviceT& device, const char* actionName=nullptr,  const char* state=nullptr);
-        bool sendPing( unsigned long  period=110000 );
+        void pingPeriod(const unsigned long period) { ping_period = period; };
+        unsigned long pingPeriod() const { return ping_period; };
+        bool sendPing();
         bool tick();
         void addDevice(const DeviceT& );
         bool updateDevice(const DeviceT&  );

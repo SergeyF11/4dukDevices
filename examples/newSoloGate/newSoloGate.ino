@@ -2,7 +2,10 @@
 
 #include <my4duk.h>
 #include <GateControl.h>
-#define MS_NEXT_MQTT_SEND 10000
+#include "rgb_led.h"
+RGBled rgbLed;
+
+#define MS_NEXT_MQTT_SEND 0
 #define BARRIER_PROCESSING_TIME_MS  10000UL
 #define BARRIER_OPEN_STATE_TIME_MS  20000UL
 #define BARRIER_PIN_CONTROL         LED_BUILTIN
@@ -75,22 +78,24 @@ Duk::DeviceT vorota( Duk::DEV_THISGATE,  //DEV_OPENABLE,
 Duk::Gate dukRouter( ID_4DUK, "thisgate", vorota );
 
 
-
 void setup(){
-   
+
     Serial.begin(115200);
     do { 
         delay(500);
     } while( !Serial);
     Serial.println();
 
-    
+
+    rgbLed.color(RGBled::Blue);
+
     if( ! myWiFiConnect() ){
         Serial.println("ERROR: wifi connection");
         ESP.restart();
         return;
     } else {
         Serial.println("Connected WiFi");
+        rgbLed.color(RGBled::Cyan);
     }
     
 
@@ -137,11 +142,12 @@ void setup(){
 
     }, 25 );
 
-    dukRouter.connect();
-    dukRouter.hello();
-    dukRouter.sendStatus(vorota, "on_off", "off");
+    if ( dukRouter.connect( ) ) rgbLed.color(RGBled::Yellow);
+    if ( dukRouter.hello() ) rgbLed.color(RGBled::Blue);
+    if ( dukRouter.sendStatus(vorota, "on_off", "off")) rgbLed.color(RGBled::Green);
     delay(MS_NEXT_MQTT_SEND);
-    dukRouter.sendStatus(vorota, "range", 0);
+    if ( dukRouter.sendStatus(vorota, "range", 0) ) rgbLed.color(RGBled::Green);
+    else rgbLed.color(RGBled::Red);
 
     ESP_MEMORY_PRINT(0);
 
@@ -153,13 +159,17 @@ void loop()
     gate.tick();
 
     if (!dukRouter.isConnected()) {
+        rgbLed.color( RGBled::Red);
         Serial.print(F("Reconnect "));
         dukRouter.connect();
         Serial.println( dukRouter.isConnected() ? F("success") : F("fail"));
         dukRouter.hello();
+    } else {
+        rgbLed.color( RGBled::Green);
     }
     if ( dukRouter.tick() ){      
-        Serial.println("Processed");
+        rgbLed.color(RGBled::Blue);
+        Serial.println("Tick processed");
     }
 
     delay(200);
